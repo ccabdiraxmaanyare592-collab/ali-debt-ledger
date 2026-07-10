@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ali SaaS Debt Network</title>
+    <!-- Tailwind CSS for mobile responsive design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Stable UMD versions of React and ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel standalone compiler to run JSX code dynamically in-browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Firebase SDK Compat libraries for robust cloud data connection -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        @keyframes scaleUp {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .animate-scale-up {
+            animation: scaleUp 0.18s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- ICONS ---
+        const StoreIcon = () => (
+          <svg className="w-6 h-6 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-10.5 0v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m19.28 0H18m-12 0h6m-12 0a1.5 1.5 0 001.5-1.5V6.75A2.25 2.25 0 016 4.5h12a2.25 2.25 0 012.25 2.25V19.5a1.5 1.5 0 001.5 1.5M2.25 12h19.5M12 3v3m0 0l-3-3m3 3l3-3" />
+          </svg>
+        );
+        const TrashIcon = () => (
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.108 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+          </svg>
+        );
+        const PlusIcon = () => (
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+        );
+
+        const ALI_ADMIN_PASSWORD = "boss";
+
+        // Global Firebase Configuration parameters
+        let firebaseConfig = { apiKey: "" };
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            try {
+                firebaseConfig = typeof __firebase_config === 'string' 
+                    ? JSON.parse(__firebase_config) 
+                    : __firebase_config;
+            } catch (err) {
+                console.error("Failed to parse Firebase configuration:", err);
+            }
+        }
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'debt-manager-dashboard';
+
+        let firebaseActive = false;
+        let db = null;
+        let auth = null;
+
+        if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== "") {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                auth = firebase.auth();
+                firebaseActive = true;
+                console.log("Connected to secure Firebase Cluster!");
+            } catch (err) {
+                console.error("Database connection failed. Loading local fallback engine.", err);
+            }
+        }
+
+        function App() {
+          const [user, setUser] = useState(null);
+          const [authLoading, setAuthLoading] = useState(true);
+          const [currentView, setCurrentView] = useState('login'); 
+          const [notification, setNotification] = useState(null);
+
+          // --- Ali Super Admin States ---
+          const [adminPasswordInput, setAdminPasswordInput] = useState('');
+          const [allTenantShops, setAllTenantShops] = useState([]);
+          const [pendingRequests, setPendingRequests] = useState([]);
+          
+          const [newShopName, setNewShopName] = useState('');
+          const [newShopCode, setNewShopCode] = useState('');
+          const [newShopRent, setNewShopRent] = useState('');
+          const [adminSearch, setAdminSearch] = useState('');
+
+          // --- Shopkeeper States ---
+          const [shopkeeperCodeInput, setShopkeeperCodeInput] = useState('');
+          const [activeShopProfile, setActiveShopProfile] = useState(null); 
+          const [debts, setDebts] = useState([]);
+
+          // --- Request Access States ---
+          const [showRequestForm, setShowRequestForm] = useState(false);
+          const [requestName, setRequestName] = useState('');
+          const [requestPhone, setRequestPhone] = useState('');
+
+          // Customer Creator Form Modal
+          const [customerName, setCustomerName] = useState('');
+          const [initialAmount, setInitialAmount] = useState('');
+
+          const triggerNotification = (message, type = 'success') => {
+            setNotification({ message, type });
+            setTimeout(() => setNotification(null), 3000);
+          };
+
+          // --- AUTHENTICATION ---
+          useEffect(() => {
+            let unsubscribe = null;
+            const runAuth = async () => {
+              if (firebaseActive && auth) {
+                try {
+                  if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await auth.signInWithCustomToken(__initial_auth_token);
+                  } else {
+                    await auth.signInAnonymously();
+                  }
+                } catch (err) {
+                  try { await auth.signInAnonymously(); } catch (fallbackErr) {}
+                }
+
+                unsubscribe = auth.onAuthStateChanged((currentUser) => {
+                  setUser(currentUser || { uid: 'offline-user' });
+                  setAuthLoading(false);
+                });
+              } else {
+                setUser({ uid: 'offline-user' });
+                setAuthLoading(false);
+              }
+            };
+            runAuth();
+            return () => { if (unsubscribe) unsubscribe(); };
+          }, []);
+
+          // --- ADMIN SYNC ENGINE (Fixed for reliability) ---
+          useEffect(() => {
+            if (!user || currentView !== 'admin') return;
+
+            let unsubShops = null;
+            let unsubRequests = null;
+
+            if (firebaseActive && db) {
+              // Sync Active Shops
+              unsubShops = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tenant_shops')
+                .onSnapshot((snapshot) => {
+                  const list = [];
+                  snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+                  setAllTenantShops(list);
+                });
+
+              // Sync Pending Requests
+              unsubRequests = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('pending_requests')
+                .onSnapshot((snapshot) => {
+                  const list = [];
+                  snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+                  setPendingRequests(list);
+                });
+            }
+
+            return () => {
+              if (unsubShops) unsubShops();
+              if (unsubRequests) unsubRequests();
+            };
+          }, [user, currentView]);
+
+          // --- SHOPKEEPER SYNC ENGINE ---
+          useEffect(() => {
+            if (!user || !activeShopProfile) return;
+
+            let unsubDebts = null;
+            if (firebaseActive && db) {
+              const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+              unsubDebts = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName)
+                .onSnapshot((snapshot) => {
+                  const list = [];
+                  snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+                  setDebts(list);
+                });
+            }
+            return () => {
+              if (unsubDebts) unsubDebts();
+            };
+          }, [user, activeShopProfile]);
+
+          // --- ROUTING HANDLERS ---
+          const handleAdminLogin = (e) => {
+            e.preventDefault();
+            if (adminPasswordInput === ALI_ADMIN_PASSWORD) {
+              setCurrentView('admin');
+              triggerNotification("Welcome back, Boss.");
+              setAdminPasswordInput('');
+            } else {
+              triggerNotification("Wrong Admin Pin.", "error");
+            }
+          };
+
+          const handleShopkeeperLogin = (e) => {
+            e.preventDefault();
+            const cleanCode = shopkeeperCodeInput.trim().toLowerCase();
+            
+            // Check if shop exists in Firebase (we query it directly if not loaded yet)
+            if (firebaseActive && db) {
+              db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tenant_shops')
+                .where('code', '==', cleanCode)
+                .get()
+                .then(snapshot => {
+                  if (snapshot.empty) {
+                    triggerNotification("Store code not found.", "error");
+                  } else {
+                    const shopData = snapshot.docs[0].data();
+                    if (shopData.status === 'Suspended') {
+                      triggerNotification("This store is suspended.", "error");
+                    } else {
+                      setActiveShopProfile({id: snapshot.docs[0].id, ...shopData});
+                      setCurrentView('shopkeeper');
+                      triggerNotification(`Welcome to ${shopData.name}`);
+                    }
+                  }
+                }).catch(() => {
+                    triggerNotification("Error checking code. Try again.", "error");
+                });
+            } else {
+              triggerNotification("System offline.", "error");
+            }
+          };
+
+          const submitRequestAccess = async (e) => {
+            e.preventDefault();
+            if (!requestName.trim() || !requestPhone.trim()) return;
+
+            const newId = Math.random().toString(36).substring(2, 11);
+            const requestData = {
+              id: newId,
+              name: requestName.trim(),
+              phone: requestPhone.trim(),
+              createdAt: new Date().toISOString()
+            };
+
+            try {
+              if (firebaseActive && db) {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('pending_requests').doc(newId).set(requestData);
+                triggerNotification("Request sent successfully! We will contact you soon.");
+                setShowRequestForm(false);
+                setRequestName('');
+                setRequestPhone('');
+              }
+            } catch (err) {
+              triggerNotification("Failed to send request. Check internet connection.", "error");
+            }
+          };
+
+          // --- MASTER SYSTEM OPERATIONS ---
+          const handleRegisterShop = async (e) => {
+            e.preventDefault();
+            if (!newShopName.trim() || !newShopCode.trim()) return;
+            const clean = newShopCode.trim().toLowerCase();
+
+            const newId = Math.random().toString(36).substring(2, 11);
+            const newShop = {
+              id: newId,
+              name: newShopName.trim(),
+              code: clean,
+              monthlyRent: parseFloat(newShopRent) || 0,
+              status: 'Active',
+              createdAt: new Date().toISOString()
+            };
+
+            try {
+              if (firebaseActive && db) {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tenant_shops').doc(newId).set(newShop);
+                triggerNotification(`Registered store passcode: ${clean}`);
+                setNewShopName(''); setNewShopCode(''); setNewShopRent('');
+              }
+            } catch (err) {
+              triggerNotification("Error saving store.", "error");
+            }
+          };
+
+          const approvePendingRequest = async (req) => {
+            const generatedCode = req.name.substring(0, 4).toLowerCase().replace(/[^a-z]/g, '') + Math.floor(100 + Math.random() * 900);
+            const newShop = {
+              id: req.id,
+              name: req.name,
+              code: generatedCode,
+              monthlyRent: 30, // Default rent
+              status: 'Active',
+              createdAt: new Date().toISOString()
+            };
+
+            try {
+              if (firebaseActive && db) {
+                // Save to active shops
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tenant_shops').doc(req.id).set(newShop);
+                // Delete from pending
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('pending_requests').doc(req.id).delete();
+                triggerNotification(`Approved! Their login code is: ${generatedCode}`);
+              }
+            } catch (err) {
+              triggerNotification("Error approving request.", "error");
+            }
+          };
+
+          const deletePendingRequest = async (id) => {
+            try {
+              if (firebaseActive && db) {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('pending_requests').doc(id).delete();
+                triggerNotification("Request deleted.");
+              }
+            } catch (err) {
+              triggerNotification("Error deleting request.", "error");
+            }
+          };
+
+          const toggleShopStatus = async (shop) => {
+            const nextStatus = shop.status === 'Active' ? 'Suspended' : 'Active';
+            try {
+              if (firebaseActive && db) {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tenant_shops').doc(shop.id).update({ status: nextStatus });
+                triggerNotification(`Shop set to: ${nextStatus}`);
+              }
+            } catch (err) {
+               triggerNotification("Failed to update status.", "error");
+            }
+          };
+
+          const handleDeleteShop = async (shop) => {
+            if(window.confirm(`Are you sure you want to delete ${shop.name}?`)) {
+                try {
+                  if (firebaseActive && db) {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tenant_shops').doc(shop.id).delete();
+                    triggerNotification("Store deleted forever.");
+                  }
+                } catch (err) {
+                    triggerNotification("Error deleting store.", "error");
+                }
+            }
+          };
+
+          // --- SHOPKEEPER OPERATIONS ---
+          const handleCreateCustomerAndDebt = async (e) => {
+            e.preventDefault();
+            if (!customerName.trim() || !initialAmount || !activeShopProfile) return;
+
+            const val = parseFloat(initialAmount);
+            const newId = Math.random().toString(36).substring(2, 11);
+            const newClient = {
+              id: newId,
+              customerName: customerName.trim(),
+              createdAt: new Date().toISOString(),
+              totalOwed: val
+            };
+
+            try {
+              if (firebaseActive && db) {
+                const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName).doc(newId).set(newClient);
+                triggerNotification(`Added $${val} debt for ${customerName}`);
+                setCustomerName(''); 
+                setInitialAmount('');
+              }
+            } catch (err) {
+                triggerNotification("Error saving debt.", "error");
+            }
+          };
+
+          const handlePayDebt = async (customer) => {
+             if(window.confirm(`Mark all debt for ${customer.customerName} as paid?`)) {
+                 try {
+                  if (firebaseActive && db) {
+                    const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName).doc(customer.id).update({ totalOwed: 0 });
+                    triggerNotification("Debt marked as paid.");
+                  }
+                } catch (err) {
+                    triggerNotification("Error paying debt.", "error");
+                }
+             }
+          };
+
+          const handleDeleteCustomer = async (cId) => {
+            if(window.confirm("Erase this customer entirely?")) {
+                try {
+                  if (firebaseActive && db) {
+                    const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName).doc(cId).delete();
+                    triggerNotification("Customer removed.");
+                  }
+                } catch (err) {
+                    triggerNotification("Error removing customer.", "error");
+                }
+            }
+          };
+
+          if (authLoading) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-4">
+                <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="text-slate-400 text-xs tracking-widest uppercase">Connecting...</p>
+              </div>
+            );
+          }
+
+          // --- VIEW: LOGIN SCREEN ---
+          if (currentView === 'login') {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
+                {notification && (
+                  <div className="fixed top-4 bg-slate-900 text-white border border-slate-800 text-xs px-4 py-3 rounded-xl z-50 animate-bounce shadow-xl font-bold">
+                    {notification.message}
+                  </div>
+                )}
+
+                <div className="w-full max-w-sm bg-slate-900 border border-slate-800/80 rounded-3xl p-6 space-y-6 shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500"></div>
+                  
+                  <div className="text-center space-y-2">
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center mx-auto text-indigo-400 border border-indigo-500/20">
+                      <StoreIcon />
+                    </div>
+                    <h1 className="text-xl font-black text-white tracking-tight">Debt Manager</h1>
+                    <p className="text-slate-400 text-xs">Enter your business code to open your ledger.</p>
+                  </div>
+
+                  {!showRequestForm ? (
+                    <form onSubmit={handleShopkeeperLogin} className="space-y-4">
+                      <div>
+                        <input 
+                          type="text" 
+                          required 
+                          placeholder="Store Access Key (e.g. demo77)" 
+                          value={shopkeeperCodeInput} 
+                          onChange={e => setShopkeeperCodeInput(e.target.value)} 
+                          className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-bold text-center text-sm uppercase focus:outline-none focus:border-indigo-500" 
+                        />
+                      </div>
+                      <button type="submit" className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors shadow-lg shadow-indigo-600/20">
+                        Open Dashboard
+                      </button>
+                      <button type="button" onClick={() => setShowRequestForm(true)} className="w-full text-slate-400 text-xs hover:text-white underline">
+                        Don't have a code? Request Access
+                      </button>
+                    </form>
+                  ) : (
+                    <form onSubmit={submitRequestAccess} className="space-y-4 animate-scale-up">
+                      <h3 className="text-white font-bold text-sm text-center">Request A Dashboard</h3>
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Your Business Name" 
+                        value={requestName} 
+                        onChange={e => setRequestName(e.target.value)} 
+                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-indigo-500" 
+                      />
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Your Phone Number" 
+                        value={requestPhone} 
+                        onChange={e => setRequestPhone(e.target.value)} 
+                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-indigo-500" 
+                      />
+                      <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors">
+                        Send Request
+                      </button>
+                      <button type="button" onClick={() => setShowRequestForm(false)} className="w-full text-slate-400 text-xs hover:text-white">
+                        Cancel
+                      </button>
+                    </form>
+                  )}
+
+                  <div className="pt-4 border-t border-slate-800/60 flex items-center gap-2">
+                    <input 
+                      type="password" 
+                      placeholder="Master Admin Pin" 
+                      value={adminPasswordInput} 
+                      onChange={e => setAdminPasswordInput(e.target.value)} 
+                      className="flex-1 px-3 py-2 bg-slate-950 border border-slate-850 rounded-lg text-white text-xs focus:outline-none focus:border-indigo-500" 
+                    />
+                    <button onClick={handleAdminLogin} className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg shrink-0">
+                      Login
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // --- VIEW: ADMIN DASHBOARD ---
+          if (currentView === 'admin') {
+            const filteredShops = allTenantShops.filter(s => 
+              s.name.toLowerCase().includes(adminSearch.toLowerCase()) || s.code.toLowerCase().includes(adminSearch.toLowerCase())
+            );
+
+            return (
+              <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
+                {notification && (
+                  <div className="fixed top-4 right-4 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl z-50 shadow-xl font-bold">
+                    {notification.message}
+                  </div>
+                )}
+                
+                <header className="bg-slate-950 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-ping"></div>
+                    <span className="font-extrabold text-xs tracking-wider uppercase">Master Admin</span>
+                  </div>
+                  <button onClick={() => setCurrentView('login')} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-lg">
+                    Logout
+                  </button>
+                </header> 
+
+                <main className="p-4 md:p-6 max-w-4xl w-full mx-auto space-y-6">
+                  {/* Stats Row */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Stores</span>
+                      <p className="text-2xl font-black mt-1 text-slate-900">{allTenantShops.length}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Monthly Income</span>
+                      <p className="text-2xl font-black text-emerald-600 mt-1">${allTenantShops.reduce((a, s) => a + (s.monthlyRent || 0), 0)}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm col-span-2">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Pending Requests</span>
+                      <p className="text-2xl font-black text-orange-500 mt-1">{pendingRequests.length} Waiting</p>
+                    </div>
+                  </div>
+
+                  {/* Pending Requests Section */}
+                  {pendingRequests.length > 0 && (
+                    <div className="bg-orange-50 p-5 border border-orange-200 rounded-2xl space-y-3">
+                      <h3 className="font-bold text-xs text-orange-900 uppercase">New Access Requests</h3>
+                      <div className="space-y-2">
+                        {pendingRequests.map(req => (
+                          <div key={req.id} className="bg-white p-3 rounded-xl flex justify-between items-center border border-orange-100">
+                            <div>
+                              <p className="font-bold text-sm">{req.name}</p>
+                              <p className="text-xs text-slate-500">{req.phone}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => approvePendingRequest(req)} className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg">Approve</button>
+                              <button onClick={() => deletePendingRequest(req.id)} className="px-3 py-1.5 bg-rose-100 text-rose-700 text-xs font-bold rounded-lg">Reject</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Create Shop Form */}
+                    <form onSubmit={handleRegisterShop} className="bg-white p-5 border border-slate-200 rounded-2xl space-y-4 h-fit">
+                      <h3 className="font-bold text-xs text-slate-900 border-b pb-2 uppercase">Create Store Manually</h3>
+                      <input type="text" required placeholder="Business Name" value={newShopName} onChange={e => setNewShopName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-sm rounded-lg" />
+                      <input type="text" required placeholder="Login Code (e.g. shop123)" value={newShopCode} onChange={e => setNewShopCode(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-sm rounded-lg uppercase" />
+                      <input type="number" placeholder="Monthly Rent ($)" value={newShopRent} onChange={e => setNewShopRent(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-sm rounded-lg" />
+                      <button type="submit" className="w-full py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-lg">Add Store</button>
+                    </form>
+
+                    {/* Shop List */}
+                    <div className="bg-white p-5 border border-slate-200 rounded-2xl md:col-span-2 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-bold text-xs text-slate-900 uppercase">Active Stores</h3>
+                        <input type="text" placeholder="Search..." value={adminSearch} onChange={e => setAdminSearch(e.target.value)} className="px-3 py-1 bg-slate-50 border border-slate-200 text-xs rounded-lg w-32" />
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {filteredShops.length === 0 ? <p className="text-sm text-slate-500 py-2">No stores found.</p> : null}
+                        {filteredShops.map(s => (
+                          <div key={s.id} className="py-3 flex justify-between items-center">
+                            <div>
+                              <p className="font-bold text-sm text-slate-900">{s.name}</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">Code: <span className="uppercase font-bold text-slate-700 bg-slate-100 px-1 py-0.5 rounded">{s.code}</span> | Rent: ${s.monthlyRent}/mo</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => toggleShopStatus(s)} className={`px-2 py-1 font-bold rounded-lg text-[10px] ${s.status === 'Active' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                {s.status === 'Active' ? 'Suspend' : 'Activate'}
+                              </button>
+                              <button onClick={() => handleDeleteShop(s)} className="text-slate-400 hover:text-rose-600 p-1">
+                                <TrashIcon />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </main>
+              </div>
+            );
+          }
+
+          // --- VIEW: SHOPKEEPER DASHBOARD ---
+          if (currentView === 'shopkeeper' && activeShopProfile) {
+            const totalOwedToStore = debts.reduce((sum, client) => sum + (client.totalOwed || 0), 0);
+            
+            return (
+              <div className="min-h-screen flex flex-col">
+                {notification && (
+                  <div className="fixed top-4 right-4 bg-indigo-600 text-white text-xs px-4 py-3 rounded-xl z-50 shadow-xl font-bold">
+                    {notification.message}
+                  </div>
+                )}
+                
+                <header className="bg-slate-900 text-white px-4 py-4 flex items-center justify-between border-b border-slate-800">
+                  <div>
+                    <h1 className="font-bold text-lg">{activeShopProfile.name}</h1>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">Customer Ledger</p>
+                  </div>
+                  <button onClick={() => { setActiveShopProfile(null); setCurrentView('login'); }} className="px-3 py-1.5 bg-slate-800 text-xs font-bold rounded-lg">
+                    Logout
+                  </button>
+                </header>
+
+                <main className="flex-1 p-4 max-w-2xl w-full mx-auto space-y-6">
+                  {/* Top Stat */}
+                  <div className="bg-indigo-600 rounded-2xl p-6 text-center shadow-lg shadow-indigo-900/50">
+                    <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest mb-1">Total Unpaid Debts</p>
+                    <p className="text-4xl font-black text-white">${totalOwedToStore.toFixed(2)}</p>
+                  </div>
+
+                  {/* Add New Debt Form */}
+                  <form onSubmit={handleCreateCustomerAndDebt} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex gap-2">
+                    <input type="text" required placeholder="Customer Name" value={customerName} onChange={e => setCustomerName(e.target.value)} className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 text-sm rounded-xl focus:border-indigo-500 outline-none" />
+                    <input type="number" required placeholder="$ Amount" value={initialAmount} onChange={e => setInitialAmount(e.target.value)} className="w-24 px-3 py-2 bg-slate-950 border border-slate-800 text-sm rounded-xl focus:border-indigo-500 outline-none" />
+                    <button type="submit" className="bg-indigo-600 p-2 rounded-xl text-white hover:bg-indigo-500">
+                      <PlusIcon />
+                    </button>
+                  </form>
+
+                  {/* Customer List */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-2">Active Customers</h3>
+                    {debts.length === 0 ? (
+                        <p className="text-center text-slate-500 text-sm py-10">No debts recorded yet.</p>
+                    ) : (
+                        debts.map(client => (
+                          <div key={client.id} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex justify-between items-center">
+                            <div>
+                              <p className="font-bold text-lg">{client.customerName}</p>
+                              <p className="text-sm font-black text-rose-400 mt-1">Owes: ${client.totalOwed?.toFixed(2)}</p>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              {client.totalOwed > 0 && (
+                                <button onClick={() => handlePayDebt(client)} className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20">
+                                  Mark Paid
+                                </button>
+                              )}
+                              <button onClick={() => handleDeleteCustomer(client.id)} className="px-3 py-1.5 bg-slate-800 text-slate-400 text-xs font-bold rounded-lg hover:text-rose-400">
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                </main>
+              </div>
+            );
+          }
+
+          return null; // Fallback
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
