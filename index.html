@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ali SaaS Debt Network</title>
+    <!-- Tailwind CSS for mobile responsive design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Stable UMD versions of React and ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel standalone compiler to run JSX code dynamically in-browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Firebase SDK Compat libraries for robust cloud data connection -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        @keyframes scaleUp {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .animate-scale-up {
+            animation: scaleUp 0.18s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- BULLETPROOF INLINE SVG GRAPHICS ---
+        const MenuIcon = () => (
+          <svg className="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        );
+        const CloseIcon = () => (
+          <svg className="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        );
+        const StoreIcon = () => (
+          <svg className="w-6 h-6 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-10.5 0v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m19.28 0H18m-12 0h6m-12 0a1.5 1.5 0 001.5-1.5V6.75A2.25 2.25 0 016 4.5h12a2.25 2.25 0 012.25 2.25V19.5a1.5 1.5 0 001.5 1.5M2.25 12h19.5M12 3v3m0 0l-3-3m3 3l3-3" />
+          </svg>
+        );
+        const SearchIcon = () => (
+          <svg className="w-5 h-5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.604 10.608z" />
+          </svg>
+        );
+        const TrashIcon = () => (
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.108 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+          </svg>
+        );
+        const MinusIcon = () => (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M18 12H6" />
+          </svg>
+        );
+        const CheckIcon = () => (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        );
+        const AlertIcon = () => (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.879 0L3.001 18.118zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+        );
+        const LogOutIcon = () => (
+          <svg className="w-5 h-5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+          </svg>
+        );
+        const StarIcon = () => (
+          <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 21l8.954-4.642L21 21l-.813-5.096L24 11.455l-5.088-.739L17 6l-1.912 4.716L10 11.455l3.813 4.449z" />
+          </svg>
+        );
+
+        const ALI_ADMIN_PASSWORD = "AliAdmin2026";
+
+        // Global Firebase Configuration parameters (Improved parser to prevent Object-to-JSON-parse crashing)
+        let firebaseConfig = { apiKey: "" };
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            try {
+                firebaseConfig = typeof __firebase_config === 'string' 
+                    ? JSON.parse(__firebase_config) 
+                    : __firebase_config;
+            } catch (err) {
+                console.error("Failed to parse Firebase configuration:", err);
+            }
+        }
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'debt-manager-dashboard';
+
+        let firebaseActive = false;
+        let db = null;
+        let auth = null;
+
+        if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== "") {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                auth = firebase.auth();
+                firebaseActive = true;
+                console.log("Connected to secure Firebase Cluster!");
+            } catch (err) {
+                console.error("Database connection failed. Loading local fallback engine.", err);
+            }
+        }
+
+        function App() {
+          const [user, setUser] = useState(null);
+          const [authLoading, setAuthLoading] = useState(true);
+          const [currentView, setCurrentView] = useState('login'); 
+          const [notification, setNotification] = useState(null);
+          const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+          // --- Ali Super Admin States ---
+          const [adminPasswordInput, setAdminPasswordInput] = useState('');
+          const [allTenantShops, setAllTenantShops] = useState([
+            { id: 'demo-1', name: 'Demo Test Shop', code: 'demo77', monthlyRent: 25.00, status: 'Active', createdAt: new Date().toISOString() }
+          ]);
+          const [newShopName, setNewShopName] = useState('');
+          const [newShopCode, setNewShopCode] = useState('');
+          const [newShopRent, setNewShopRent] = useState('');
+          const [adminSearch, setAdminSearch] = useState('');
+
+          // --- Shopkeeper States ---
+          const [shopkeeperCodeInput, setShopkeeperCodeInput] = useState('');
+          const [activeShopProfile, setActiveShopProfile] = useState(null); 
+          const [debts, setDebts] = useState([]);
+
+          const [searchTerm, setSearchTerm] = useState('');
+          const [filterStatus, setFilterStatus] = useState('all');
+          const [sortBy, setSortBy] = useState('newest');
+
+          // Customer Creator Form Modal
+          const [isModalOpen, setIsModalOpen] = useState(false);
+          const [customerName, setCustomerName] = useState('');
+          const [phoneNumber, setPhoneNumber] = useState('');
+          const [initialAmount, setInitialAmount] = useState('');
+          const [initialCurrency, setInitialCurrency] = useState('USD');
+          const [initialDate, setInitialDate] = useState(new Date().toISOString().split('T')[0]);
+          const [initialNote, setInitialNote] = useState('');
+
+          // Add Extra Debt Modal
+          const [isExtraModalOpen, setIsExtraModalOpen] = useState(false);
+          const [selectedCustomerForExtra, setSelectedCustomerForExtra] = useState(null);
+          const [extraAmount, setExtraAmount] = useState('');
+          const [extraCurrency, setExtraCurrency] = useState('USD');
+          const [extraDate, setExtraDate] = useState(new Date().toISOString().split('T')[0]);
+          const [extraNote, setExtraNote] = useState('');
+
+          // Reduce Debt Modal (Partial payment)
+          const [isReduceModalOpen, setIsReduceModalOpen] = useState(false);
+          const [selectedCustomerForReduce, setSelectedCustomerForReduce] = useState(null);
+          const [selectedTransactionForReduce, setSelectedTransactionForReduce] = useState(null);
+          const [reduceAmount, setReduceAmount] = useState('');
+          const [reduceDate, setReduceDate] = useState(new Date().toISOString().split('T')[0]);
+
+          // Expanded cards mapping
+          const [expandedCards, setExpandedCards] = useState({});
+
+          // Custom Confirmation Modal details
+          const [confirmModal, setConfirmModal] = useState({
+            isOpen: false,
+            title: '',
+            message: '',
+            onConfirm: null
+          });
+
+          const toggleExpand = (id) => {
+            setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+          };
+
+          const triggerNotification = (message, type = 'success') => {
+            setNotification({ message, type });
+            setTimeout(() => setNotification(null), 3000);
+          };
+
+          const triggerConfirm = (title, message, onConfirm) => {
+            setConfirmModal({
+              isOpen: true,
+              title,
+              message,
+              onConfirm: () => {
+                onConfirm();
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+              }
+            });
+          };
+
+          // --- SIGN-IN / SETUP (Upgraded to adhere to Rule 3 & use secure Custom Token) ---
+          useEffect(() => {
+            let unsubscribe = null;
+            
+            const runAuth = async () => {
+              if (firebaseActive && auth) {
+                try {
+                  if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await auth.signInWithCustomToken(__initial_auth_token);
+                    console.log("Authenticated successfully via Custom Token!");
+                  } else {
+                    await auth.signInAnonymously();
+                    console.log("Authenticated successfully via Anonymous Login!");
+                  }
+                } catch (err) {
+                  console.warn("Primary authentication error, attempting anonymous fallback:", err);
+                  try {
+                    await auth.signInAnonymously();
+                  } catch (fallbackErr) {
+                    console.error("All authentication strategies failed:", fallbackErr);
+                  }
+                }
+
+                unsubscribe = auth.onAuthStateChanged((currentUser) => {
+                  setUser(currentUser || { uid: 'offline-user' });
+                  setAuthLoading(false);
+                });
+              } else {
+                setUser({ uid: 'offline-user' });
+                setAuthLoading(false);
+              }
+            };
+
+            runAuth();
+
+            return () => {
+              if (unsubscribe) unsubscribe();
+            };
+          }, []);
+
+          // --- SYNC ENGINE (Offline LocalStorage + Online Firebase) ---
+          useEffect(() => {
+            if (!user) return;
+
+            if (firebaseActive && db) {
+              const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tenant_shops')
+                .onSnapshot((snapshot) => {
+                  const list = [];
+                  snapshot.forEach((doc) => {
+                    list.push({ id: doc.id, ...doc.data() });
+                  });
+                  if (list.length > 0) {
+                    setAllTenantShops(list);
+                    localStorage.setItem('ali_tenant_shops', JSON.stringify(list));
+                  } else {
+                    setAllTenantShops([
+                      { id: 'demo-1', name: 'Demo Test Shop', code: 'demo77', monthlyRent: 25.00, status: 'Active', createdAt: new Date().toISOString() }
+                    ]);
+                  }
+                }, (err) => {
+                  console.error("Firebase shop load failure:", err);
+                });
+              return () => unsubscribe();
+            } else {
+              const backup = localStorage.getItem('ali_tenant_shops');
+              if (backup) setAllTenantShops(JSON.parse(backup));
+            }
+          }, [user]);
+
+          useEffect(() => {
+            if (!user || !activeShopProfile) return;
+            const storageKey = `ali_ledger_${activeShopProfile.code}`;
+
+            if (firebaseActive && db) {
+              const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+              const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName)
+                .onSnapshot((snapshot) => {
+                  const list = [];
+                  snapshot.forEach((doc) => {
+                    list.push({ id: doc.id, ...doc.data() });
+                  });
+                  setDebts(list);
+                  localStorage.setItem(storageKey, JSON.stringify(list));
+                }, (err) => {
+                  console.error("Firebase ledger load failure, loading local cache:", err);
+                  const cache = localStorage.getItem(storageKey);
+                  if (cache) setDebts(JSON.parse(cache));
+                });
+              return () => unsubscribe();
+            } else {
+              const cache = localStorage.getItem(storageKey);
+              setDebts(cache ? JSON.parse(cache) : []);
+            }
+          }, [user, activeShopProfile]);
+
+          // Sync Helper Functions
+          const saveShops = async (list) => {
+            setAllTenantShops(list);
+            localStorage.setItem('ali_tenant_shops', JSON.stringify(list));
+          };
+
+          const saveDebts = async (list) => {
+            setDebts(list);
+            if (activeShopProfile) {
+              localStorage.setItem(`ali_ledger_${activeShopProfile.code}`, JSON.stringify(list));
+            }
+          };
+
+          // --- ROUTING HANDLERS ---
+          const handleAdminLogin = (e) => {
+            e.preventDefault();
+            if (adminPasswordInput === ALI_ADMIN_PASSWORD) {
+              setCurrentView('admin');
+              triggerNotification("SaaS Admin Panel successfully loaded.");
+              setAdminPasswordInput('');
+            } else {
+              triggerNotification("Access Denied.", "error");
+            }
+          };
+
+          const handleShopkeeperLogin = (e) => {
+            e.preventDefault();
+            const clean = shopkeeperCodeInput.trim().toLowerCase();
+            const found = allTenantShops.find(s => s.code.toLowerCase() === clean);
+
+            if (!found) {
+              triggerNotification("Store code not found. Enter demo77 to test!", "error");
+              return;
+            }
+            if (found.status === 'Suspended') {
+              triggerNotification("This shopkeeper's terminal is currently suspended.", "error");
+              return;
+            }
+
+            setActiveShopProfile(found);
+            setCurrentView('shopkeeper');
+            setIsSidebarOpen(false);
+            triggerNotification(`Welcome to ${found.name}`);
+          };
+
+          // --- MASTER SYSTEM OPERATIONS ---
+          const handleRegisterShop = async (e) => {
+            e.preventDefault();
+            if (!newShopName.trim() || !newShopCode.trim()) return;
+            const clean = newShopCode.trim().toLowerCase();
+
+            if (allTenantShops.some(s => s.code.toLowerCase() === clean)) {
+              triggerNotification("This store access code is already registered.", "error");
+              return;
+            }
+
+            const newId = Math.random().toString(36).substring(2, 11);
+            const newShop = {
+              id: newId,
+              name: newShopName.trim(),
+              code: clean,
+              monthlyRent: parseFloat(newShopRent) || 0,
+              status: 'Active',
+              createdAt: new Date().toISOString()
+            };
+
+            const updated = [...allTenantShops, newShop];
+            saveShops(updated);
+
+            if (firebaseActive && db) {
+              try {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tenant_shops').doc(newId).set(newShop);
+              } catch (err) { console.error(err); }
+            }
+
+            triggerNotification(`Registered store passcode: ${clean}`);
+            setNewShopName(''); setNewShopCode(''); setNewShopRent('');
+          };
+
+          const toggleShopStatus = async (shop) => {
+            const nextStatus = shop.status === 'Active' ? 'Suspended' : 'Active';
+            const updated = allTenantShops.map(s => s.id === shop.id ? { ...s, status: nextStatus } : s);
+            saveShops(updated);
+
+            if (firebaseActive && db) {
+              try {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tenant_shops').doc(shop.id).update({ status: nextStatus });
+              } catch (err) { console.error(err); }
+            }
+            triggerNotification(`Shop status set to: ${nextStatus}`);
+          };
+
+          const handleDeleteShop = (shop) => {
+            triggerConfirm(
+              "Delete Store License",
+              `Are you sure you want to completely delete ${shop.name}? This removes all client files associated with their workspace code.`,
+              async () => {
+                const updated = allTenantShops.filter(s => s.id !== shop.id);
+                saveShops(updated);
+
+                if (firebaseActive && db) {
+                  try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('tenant_shops').doc(shop.id).delete();
+                  } catch (err) { console.error(err); }
+                }
+                triggerNotification("Erase operation complete.");
+              }
+            );
+          };
+
+          // --- LEDGER WRITE CONTROLLERS ---
+          const handleCreateCustomerAndDebt = async (e) => {
+            e.preventDefault();
+            if (!customerName.trim() || !initialAmount || !activeShopProfile) return;
+
+            const val = parseFloat(initialAmount);
+            const newId = Math.random().toString(36).substring(2, 11);
+            const newClient = {
+              id: newId,
+              customerName: customerName.trim(),
+              phoneNumber: phoneNumber.trim() || 'N/A',
+              createdAt: new Date().toISOString(),
+              transactions: [{
+                id: Math.random().toString(36).substring(2, 11),
+                amount: val,
+                currency: initialCurrency,
+                date: initialDate,
+                note: initialNote.trim() || 'Initial Balance Entry',
+                status: 'Unpaid'
+              }]
+            };
+
+            const updated = [newClient, ...debts];
+            saveDebts(updated);
+
+            if (firebaseActive && db) {
+              try {
+                const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName).doc(newId).set(newClient);
+              } catch (err) { console.error(err); }
+            }
+
+            triggerNotification(`Added ledger for ${customerName}`);
+            setCustomerName(''); setPhoneNumber(''); setInitialAmount(''); setInitialNote('');
+            setIsModalOpen(false);
+          };
+
+          const handleAddExtraDebt = async (e) => {
+            e.preventDefault();
+            if (!selectedCustomerForExtra || !extraAmount || !activeShopProfile) return;
+
+            const val = parseFloat(extraAmount);
+            const newLog = {
+              id: Math.random().toString(36).substring(2, 11),
+              amount: val,
+              currency: extraCurrency,
+              date: extraDate,
+              note: extraNote.trim() || 'Additional Purchase Log',
+              status: 'Unpaid'
+            };
+
+            const updated = debts.map(c => {
+              if (c.id === selectedCustomerForExtra.id) {
+                return { ...c, transactions: [...(c.transactions || []), newLog] };
+              }
+              return c;
+            });
+            saveDebts(updated);
+
+            if (firebaseActive && db) {
+              try {
+                const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+                const match = updated.find(c => c.id === selectedCustomerForExtra.id);
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName).doc(selectedCustomerForExtra.id).update({ transactions: match.transactions });
+              } catch (err) { console.error(err); }
+            }
+
+            triggerNotification("Additional ledger log appended.");
+            setExtraAmount(''); setExtraNote('');
+            setIsExtraModalOpen(false);
+            setSelectedCustomerForExtra(null);
+          };
+
+          const handleReduceDebt = async (e) => {
+            e.preventDefault();
+            if (!selectedCustomerForReduce || !selectedTransactionForReduce || !reduceAmount || !activeShopProfile) return;
+
+            const val = parseFloat(reduceAmount);
+            if (isNaN(val) || val <= 0) return;
+
+            const updated = debts.map(c => {
+              if (c.id === selectedCustomerForReduce.id) {
+                const updatedTx = c.transactions.map(t => {
+                  if (t.id === selectedTransactionForReduce.id) {
+                    const rem = t.amount - val;
+                    return {
+                      ...t,
+                      amount: rem,
+                      note: `${t.note || ''} (Paid $${val} on ${reduceDate})`.trim(),
+                      status: rem <= 0 ? 'Paid' : 'Unpaid'
+                    };
+                  }
+                  return t;
+                });
+                return { ...c, transactions: updatedTx };
+              }
+              return c;
+            });
+            saveDebts(updated);
+
+            if (firebaseActive && db) {
+              try {
+                const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+                const match = updated.find(c => c.id === selectedCustomerForReduce.id);
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName).doc(selectedCustomerForReduce.id).update({ transactions: match.transactions });
+              } catch (err) { console.error(err); }
+            }
+
+            triggerNotification("Payment balance logged.");
+            setReduceAmount('');
+            setIsReduceModalOpen(false);
+            setSelectedCustomerForReduce(null);
+            setSelectedTransactionForReduce(null);
+          };
+
+          const setTransactionStatus = async (customer, tId, stat) => {
+            const updated = debts.map(c => {
+              if (c.id === customer.id) {
+                const nextTx = c.transactions.map(t => t.id === tId ? { ...t, status: stat } : t);
+                return { ...c, transactions: nextTx };
+              }
+              return c;
+            });
+            saveDebts(updated);
+
+            if (firebaseActive && db) {
+              try {
+                const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+                const match = updated.find(c => c.id === customer.id);
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName).doc(customer.id).update({ transactions: match.transactions });
+              } catch (err) { console.error(err); }
+            }
+            triggerNotification(`Log marked as ${stat}`);
+          };
+
+          const handleDeleteTransaction = (customer, tId) => {
+            triggerConfirm(
+              "Delete Ledger Entry",
+              "Are you sure you want to permanently delete this logged transaction record?",
+              async () => {
+                const updated = debts.map(c => {
+                  if (c.id === customer.id) {
+                    const filtered = c.transactions.filter(t => t.id !== tId);
+                    return { ...c, transactions: filtered };
+                  }
+                  return c;
+                });
+                saveDebts(updated);
+
+                if (firebaseActive && db) {
+                  try {
+                    const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+                    const match = updated.find(c => c.id === customer.id);
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName).doc(customer.id).update({ transactions: match.transactions });
+                  } catch (err) { console.error(err); }
+                }
+                triggerNotification("Erase log completed.");
+              }
+            );
+          };
+
+          const handleDeleteCustomerEntirely = (cId, name) => {
+            triggerConfirm(
+              "Erase Customer Account Profile",
+              `Are you sure you want to erase ${name} and all associated ledger records from memory?`,
+              async () => {
+                const updated = debts.filter(c => c.id !== cId);
+                saveDebts(updated);
+
+                if (firebaseActive && db) {
+                  try {
+                    const colName = `debts_ledger_${activeShopProfile.code.toLowerCase().trim()}`;
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection(colName).doc(cId).delete();
+                  } catch (err) { console.error(err); }
+                }
+                triggerNotification("Client directory wiped.");
+              }
+            );
+          };
+
+          const handleLogout = () => {
+            setActiveShopProfile(null);
+            setShopkeeperCodeInput('');
+            setIsSidebarOpen(false);
+            setCurrentView('login');
+          };
+
+          // --- STATS ENGINES ---
+          const getBalances = (tx = []) => {
+            let owesUSD = 0, weOweUSD = 0, owesSSH = 0, weOweSSH = 0, paidUSD = 0, paidSSH = 0;
+            tx.forEach(t => {
+              const amt = parseFloat(t.amount) || 0;
+              const cur = t.currency || 'USD';
+              const stat = t.status || 'Unpaid';
+
+              if (stat === 'Paid') {
+                if (cur === 'USD') paidUSD += Math.max(0, amt);
+                else paidSSH += Math.max(0, amt);
+              } else {
+                if (cur === 'USD') {
+                  if (amt > 0) owesUSD += amt;
+                  else weOweUSD += Math.abs(amt);
+                } else {
+                  if (amt > 0) owesSSH += amt;
+                  else weOweSSH += Math.abs(amt);
+                }
+              }
+            });
+            return { owesUSD, weOweUSD, owesSSH, weOweSSH, paidUSD, paidSSH };
+          };
+
+          const getGlobalTotals = () => {
+            let owesUSD = 0, weOweUSD = 0, owesSSH = 0, weOweSSH = 0, paidUSD = 0, paidSSH = 0;
+            debts.forEach(c => {
+              const b = getBalances(c.transactions || []);
+              owesUSD += b.owesUSD; weOweUSD += b.weOweUSD;
+              owesSSH += b.owesSSH; weOweSSH += b.weOweSSH;
+              paidUSD += b.paidUSD; paidSSH += b.paidSSH;
+            });
+            return { owesUSD, weOweUSD, owesSSH, weOweSSH, paidUSD, paidSSH };
+          };
+
+          const processedDebts = debts
+            .filter(c => {
+              const nameMatch = c.customerName ? c.customerName.toLowerCase().includes(searchTerm.toLowerCase()) : false;
+              const phoneMatch = c.phoneNumber ? c.phoneNumber.includes(searchTerm) : false;
+              const match = nameMatch || phoneMatch;
+
+              if (filterStatus === 'all') return match;
+              const b = getBalances(c.transactions || []);
+              if (filterStatus === 'unpaid') return match && (b.owesUSD > 0 || b.owesSSH > 0);
+              return match && (b.owesUSD === 0 && b.owesSSH === 0);
+            })
+            .sort((a, b) => {
+              if (sortBy === 'newest') return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+              return getBalances(b.transactions || []).owesUSD - getBalances(a.transactions || []).owesUSD;
+            });
+
+          const filteredShops = allTenantShops.filter(s => {
+            const nameMatch = s.name ? s.name.toLowerCase().includes(adminSearch.toLowerCase()) : false;
+            const codeMatch = s.code ? s.code.toLowerCase().includes(adminSearch.toLowerCase()) : false;
+            return nameMatch || codeMatch;
+          });
+          
+          const globalStore = getGlobalTotals();
+
+          if (authLoading) {
+            return (
+              <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+                <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="text-slate-400 text-xs tracking-widest uppercase">Connecting to Cloud Server...</p>
+              </div>
+            );
+          }
+
+          // RENDER ENGINE LAYOUTS
+          if (currentView === 'login') {
+            return (
+              <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+                {notification && (
+                  <div className="fixed top-4 right-4 bg-slate-900 text-white border border-slate-800 text-xs px-3.5 py-2 rounded-xl z-50 animate-bounce shadow-xl">
+                    {notification.message}
+                  </div>
+                )}
+
+                <div className="w-full max-w-sm bg-slate-900 border border-slate-800/80 rounded-3xl p-6 space-y-6 shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500"></div>
+                  
+                  <div className="text-center space-y-2">
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center mx-auto text-indigo-400 border border-indigo-500/20">
+                      <StoreIcon />
+                    </div>
+                    <h1 className="text-xl font-black text-white tracking-tight">Ali's SaaS Debt Network</h1>
+                    <p className="text-slate-400 text-xs">Enter your business code to open your ledger dashboard.</p>
+                  </div>
+
+                  <form onSubmit={handleShopkeeperLogin} className="space-y-3.5">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-500 tracking-widest uppercase block mb-1.5 ml-1">Store Access Key</label>
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="e.g. demo77" 
+                        value={shopkeeperCodeInput} 
+                        onChange={e => setShopkeeperCodeInput(e.target.value)} 
+                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-bold text-center text-sm uppercase tracking-widest focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" 
+                      />
+                    </div>
+                    <button type="submit" className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors shadow-lg shadow-indigo-600/20">
+                      Open Secure Dashboard
+                    </button>
+                  </form>
+
+                  <div className="pt-4 border-t border-slate-800/60 flex items-center gap-2">
+                    <input 
+                      type="password" 
+                      placeholder="Admin Pin" 
+                      value={adminPasswordInput} 
+                      onChange={e => setAdminPasswordInput(e.target.value)} 
+                      className="flex-1 px-3 py-2 bg-slate-950 border border-slate-850 rounded-lg text-white text-xs focus:outline-none focus:border-indigo-500 font-medium" 
+                    />
+                    <button onClick={handleAdminLogin} className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg shrink-0 transition-colors">
+                      Admin
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (currentView === 'admin') {
+            return (
+              <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
+                <header className="bg-slate-950 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800 shadow-md">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-ping"></div>
+                    <span className="font-extrabold text-xs tracking-wider text-slate-200 uppercase">Ali's SaaS Administration</span>
+                  </div>
+                  <button onClick={handleLogout} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-lg text-slate-200 transition-colors">
+                    Exit Admin Matrix
+                  </button>
+                </header>
+
+                <main className="p-4 md:p-6 max-w-4xl w-full mx-auto space-y-6 flex-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                      <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Total Terminals</span>
+                      <p className="text-2xl font-black mt-1 text-slate-900">{filteredShops.length} Stores</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                      <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Monthly SaaS Projected</span>
+                      <p className="text-2xl font-black text-emerald-600 mt-1">${filteredShops.reduce((a, s) => a + (s.monthlyRent || 0), 0).toFixed(2)} /mo</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                      <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Suspended Terminals</span>
+                      <p className="text-2xl font-black text-rose-600 mt-1">{filteredShops.filter(s => s.status === 'Suspended').length} Locked</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <form onSubmit={handleRegisterShop} className="bg-white p-5 border border-slate-200 rounded-2xl space-y-4 h-fit shadow-sm text-slate-950">
+                      <h3 className="font-bold text-xs text-slate-900 border-b pb-2 uppercase tracking-wide">Register New Store</h3>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Store Business Name</label>
+                        <input type="text" required placeholder="e.g. Al-Najah Supermarket" value={newShopName} onChange={e => setNewShopName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-none focus:border-indigo-500" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">License Access Key</label>
+                        <input type="text" required placeholder="e.g. najah88" value={newShopCode} onChange={e => setNewShopCode(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg font-bold uppercase tracking-widest focus:outline-none focus:border-indigo-500" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Monthly Rent Target ($)</label>
+                        <input type="number" placeholder="e.g. 25" value={newShopRent} onChange={e => setNewShopRent(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-none focus:border-indigo-500" />
+                      </div>
+                      <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition-colors shadow-sm">
+                        Activate Shop Node
+                      </button>
+                    </form>
+
+                    <div className="bg-white p-5 border border-slate-200 rounded-2xl md:col-span-2 space-y-4 shadow-sm text-slate-950">
+                      <div className="flex justify-between items-center gap-2">
+                        <h3 className="font-bold text-xs text-slate-900 uppercase tracking-wide">Rented Terminals Directory</h3>
+                        <input type="text" placeholder="Search keys..." value={adminSearch} onChange={e => setAdminSearch(e.target.value)} className="px-3 py-1 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-none" />
+                      </div>
+                      <div className="divide-y divide-slate-100 text-xs">
+                        {filteredShops.map(s => (
+                          <div key={s.id} className="py-3.5 flex justify-between items-center gap-2">
+                            <div>
+                              <p className="font-bold text-slate-900">{s.name}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">Code: <span className="uppercase font-bold text-slate-700 bg-slate-100 px-1 py-0.5 rounded">{s.code}</span> | Rent Fee: ${s.monthlyRent}/mo</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => toggleShopStatus(s)} className={`px-2.5 py-1 font-bold rounded-lg text-[10px] transition-colors ${s.status === 'Active' ? 'bg-rose-50 hover:bg-rose-100 text-rose-700' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'}`}>
+                                {s.status === 'Active' ? 'Suspend' : 'Activate'}
+                              </button>
+                              <button onClick={() => handleDeleteShop(s)} className="text-slate-300 hover:text-rose-600 p-1 transition-colors">
+                                <TrashIcon />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                
